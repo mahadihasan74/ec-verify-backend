@@ -37,12 +37,12 @@ app.get('/api/verify', async (req, res) => {
         redx: "কী (API Key) সেট করা নেই"
     };
 
-    // ==========================================
-    // 🚀 STEADFAST FRAUD CHECK (FIXED ROUTE)
-    // ==========================================
+    // ====================================================
+    // 🚀 STEADFAST FRAUD CHECK (DIRECT SERVER IP ROUTE)
+    // ====================================================
     try {
-        // নতুন 'vapi' ডোমেইন ব্যবহার করা হয়েছে যা ENOTFOUND এরর ফিক্স করবে
-        const sfRes = await axios.post('https://vapi.steadfast.com.bd/api/v1/fraud-check', 
+        // ডোমেইন হোস্ট ব্লকিং এড়াতে সরাসরি অফিসিয়াল আইপি (103.145.118.20) ব্যবহার করা হয়েছে
+        const sfRes = await axios.post('http://103.145.118.20/api/v1/fraud-check', 
         { 
             phone: phone 
         }, 
@@ -52,7 +52,7 @@ app.get('/api/verify', async (req, res) => {
                 'Secret-Key': STEADFAST_SECRET_KEY,
                 'Content-Type': 'application/json' 
             },
-            timeout: 7000 // ৭ সেকেন্ড টাইমআউট
+            timeout: 8000 // রেন্ডার থেকে ৮ সেকেন্ড সময় দেওয়া হলো
         });
 
         if (sfRes.data && (sfRes.data.status === 200 || sfRes.data.status === 'success')) {
@@ -64,12 +64,26 @@ app.get('/api/verify', async (req, res) => {
             report.steadfast = "কোনো পূর্ববর্তী রেকর্ড নেই";
         }
     } catch (err) {
-        console.error("Steadfast Error Log:", err.response ? err.response.data : err.message);
-        report.steadfast = "রেকর্ড পাওয়া যায়নি বা এপিআই ব্লক";
+        // যদি আইপি রুট রিজেক্ট হয়, তবে আমরা মেইন ডোমেইনে অল্টারনেটিভ ট্রাই মারবো ব্যাকআপ হিসেবে
+        try {
+            const backupRes = await axios.post('https://vapi.steadfast.com.bd/api/v1/fraud-check', 
+            { phone: phone }, 
+            { 
+                headers: { 'Api-Key': STEADFAST_API_KEY, 'Secret-Key': STEADFAST_SECRET_KEY, 'Content-Type': 'application/json' },
+                timeout: 5000 
+            });
+            if (backupRes.data && backupRes.data.data) {
+                let d = backupRes.data.data;
+                report.steadfast = `ডেলিভারি: ${d.success_rate || 0}% (মোট: ${d.total_order || 0}, রিটার্ন: ${d.total_return || 0})`;
+            }
+        } catch (backupErr) {
+            console.error("Steadfast Both Routes Failed:", err.message);
+            report.steadfast = "রেকর্ড পাওয়া যায়নি বা এপিআই ব্লক";
+        }
     }
 
     res.json(report);
 });
 
-const PORT = process.env.PORT || 10000; // Render সাধারণত 10000 পোর্ট ব্যবহার করে
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
