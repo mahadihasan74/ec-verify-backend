@@ -10,9 +10,6 @@ app.use(express.json());
 const STEADFAST_API_KEY = process.env.STEADFAST_API_KEY || "puqmh5ebcoaegq6kdxef2oohbabwttym";
 const STEADFAST_SECRET_KEY = process.env.STEADFAST_SECRET_KEY || "w5wpkhamys6neqawvcntn6yu";
 
-const REDX_API_TOKEN = "YOUR_REDX_API_TOKEN";
-const PATHAO_CLIENT_ID = "YOUR_PATHAO_CLIENT_ID";
-
 app.get('/api/verify', async (req, res) => {
     let phone = req.query.phone;
 
@@ -20,6 +17,7 @@ app.get('/api/verify', async (req, res) => {
         return res.status(400).json({ status: "error", message: "নম্বর দেওয়া হয়নি!" });
     }
 
+    // নম্বরের ফরম্যাট ঠিক করা
     phone = phone.trim();
     if (phone.startsWith("+88")) {
         phone = phone.replace("+88", "");
@@ -40,11 +38,11 @@ app.get('/api/verify', async (req, res) => {
     };
 
     // ==========================================
-    // 🚀 ১. STEADFAST FRAUD CHECK
+    // 🚀 STEADFAST FRAUD CHECK (FIXED ROUTE)
     // ==========================================
     try {
-        // আমরা রিকোয়েস্ট টাইপ এবং হেডার চেক করছি
-        const sfRes = await axios.post('https://portal.steadfast.com.bd/api/v1/fraud-check', 
+        // নতুন 'vapi' ডোমেইন ব্যবহার করা হয়েছে যা ENOTFOUND এরর ফিক্স করবে
+        const sfRes = await axios.post('https://vapi.steadfast.com.bd/api/v1/fraud-check', 
         { 
             phone: phone 
         }, 
@@ -54,25 +52,24 @@ app.get('/api/verify', async (req, res) => {
                 'Secret-Key': STEADFAST_SECRET_KEY,
                 'Content-Type': 'application/json' 
             },
-            timeout: 5000 // ৫ সেকেন্ডের মধ্যে রেসপন্স না আসলে কেটে যাবে
+            timeout: 7000 // ৭ সেকেন্ড টাইমআউট
         });
 
         if (sfRes.data && (sfRes.data.status === 200 || sfRes.data.status === 'success')) {
             let data = sfRes.data.data || sfRes.data;
             report.steadfast = `ডেলিভারি: ${data.success_rate || 0}% (মোট: ${data.total_order || 0}, রিটার্ন: ${data.total_return || 0})`;
         } else if (sfRes.data && sfRes.data.message) {
-            report.steadfast = sfRes.data.message; // স্টেডফাস্ট নিজস্ব কোনো মেসেজ দিলে তা দেখাবে
+            report.steadfast = sfRes.data.message;
         } else {
             report.steadfast = "কোনো পূর্ববর্তী রেকর্ড নেই";
         }
     } catch (err) {
-        // রেন্ডার লগে আসল এরর মেসেজ দেখার জন্য
-        console.error("Steadfast Detailed Error:", err.response ? err.response.data : err.message);
-        report.steadfast = "চেক করা যায়নি বা রেকর্ড নেই";
+        console.error("Steadfast Error Log:", err.response ? err.response.data : err.message);
+        report.steadfast = "রেকর্ড পাওয়া যায়নি বা এপিআই ব্লক";
     }
 
     res.json(report);
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000; // Render সাধারণত 10000 পোর্ট ব্যবহার করে
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
