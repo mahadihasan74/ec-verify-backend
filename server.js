@@ -30,31 +30,38 @@ app.get('/api/verify', async (req, res) => {
         status: "success",
         phone: phone,
         whatsapp: "Active",
-        steadfast: "কোনো পূর্ববর্তী রেকর্ড নেই"
+        steadfast: "কোনো পূর্ববর্তী রেকর্ড নেই",
+        pathao: "কী সেট করা নেই",
+        redx: "কী সেট করা নেই"
     };
 
+    // ====================================================
+    // 🚀 STEADFAST FRAUD CHECK (DIRECT IP + USER AGENT)
+    // ====================================================
     try {
-        // রেন্ডারের আইপি ব্লক এড়াতে আমরা ব্রাউজারের মতো User-Agent হেডার পাঠাচ্ছি
-        const sfRes = await axios.post('https://vapi.steadfast.com.bd/api/v1/fraud-check', 
+        // ENOTFOUND ডোমেইন এরর এড়াতে সরাসরি আইপি এবং ব্রাউজার হেডার ব্যবহার করা হলো
+        const sfRes = await axios.post('http://103.145.118.20/api/v1/fraud-check', 
         { phone: phone }, 
         { 
             headers: { 
                 'Api-Key': STEADFAST_API_KEY,
                 'Secret-Key': STEADFAST_SECRET_KEY,
                 'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' // এই লাইনটি ব্লক এড়াতে সাহায্য করবে
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             },
             timeout: 10000 
         });
 
-        if (sfRes.data && (sfRes.data.status === 200 || sfRes.data.status === 'success' || sfRes.data.success === true)) {
+        if (sfRes.data) {
             let data = sfRes.data.data || sfRes.data;
-            report.steadfast = `ডেলিভারি: ${data.success_rate || 100}% (মোট অর্ডার: ${data.total_order || 7}, রিটার্ন: ${data.total_return || 0})`;
-        } else if (sfRes.data && sfRes.data.message) {
-            report.steadfast = sfRes.data.message;
+            if (data && (data.total_order !== undefined || data.success_rate !== undefined)) {
+                report.steadfast = `ডেলিভারি: ${data.success_rate || 0}% (মোট: ${data.total_order || 0}, রিটার্ন: ${data.total_return || 0})`;
+            } else if (sfRes.data.message) {
+                report.steadfast = sfRes.data.message;
+            }
         }
     } catch (err) {
-        console.error("Steadfast API Error:", err.message);
+        console.error("Steadfast IP Route Error:", err.message);
         report.steadfast = "রেকর্ড চেক করা যায়নি";
     }
 
